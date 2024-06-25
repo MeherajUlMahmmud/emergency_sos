@@ -1,8 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:emergency_sos/screens/login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 // import 'package:flutter_sms/flutter_sms.dart';
-
-List<String> recipients = ["111", "555"];
 
 class GetLocation extends StatefulWidget {
   const GetLocation({super.key});
@@ -12,22 +14,30 @@ class GetLocation extends StatefulWidget {
 }
 
 class Location extends State<GetLocation> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  User? _user;
+  String _emergencyPhone = '';
+
   var locationMessage = "";
+  bool isLoading = true;
+  bool isDisabled = false;
 
-  // void getCurrentLocation() async {
-  //   var position = await Geolocator.getCurrentPosition(
-  //     desiredAccuracy: LocationAccuracy.high,
-  //   );
-  //   var lastPosition = await Geolocator.getLastKnownPosition();
-  //   print(lastPosition);
-  //   var lat = position.latitude;
-  //   var long = position.longitude;
-  //   print("$lat , $long");
-
-  //   setState(() {
-  //     locationMessage = "Latitude : $lat , Longitude : $long";
-  //   });
-  // }
+  Future<void> _fetchUserData() async {
+    _user = _auth.currentUser;
+    if (_user != null) {
+      DocumentSnapshot userDoc =
+          await _firestore.collection('users').doc(_user!.uid).get();
+      if (userDoc.exists) {
+        setState(() {
+          _emergencyPhone = userDoc['emergencyPhone'];
+        });
+      }
+    } else {
+      Navigator.pushReplacementNamed(context, LoginScreen.routeName);
+    }
+  }
 
   void getCurrentLocation() async {
     LocationPermission permission;
@@ -36,7 +46,10 @@ class Location extends State<GetLocation> {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       print('Location services are disabled.');
-      // Request the user to enable location services
+      setState(() {
+        isLoading = false;
+        isDisabled = true;
+      });
       return;
     }
 
@@ -47,6 +60,10 @@ class Location extends State<GetLocation> {
       if (permission == LocationPermission.denied) {
         // Permissions are denied, next time you could try to ask for permissions again
         print('Location permissions are denied');
+        setState(() {
+          isLoading = false;
+          isDisabled = true;
+        });
         return;
       }
     }
@@ -55,6 +72,10 @@ class Location extends State<GetLocation> {
       // Permissions are denied forever, handle appropriately
       print(
           'Location permissions are permanently denied, we cannot request permissions.');
+      setState(() {
+        isLoading = false;
+        isDisabled = true;
+      });
       return;
     }
 
@@ -70,11 +91,13 @@ class Location extends State<GetLocation> {
 
     setState(() {
       locationMessage = "Latitude : $lat , Longitude : $long";
+      isLoading = false;
     });
   }
 
   @override
   void initState() {
+    _fetchUserData();
     getCurrentLocation();
 
     super.initState();
@@ -84,7 +107,7 @@ class Location extends State<GetLocation> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Savior - GetLocation & Message'),
+        title: const Text('Savior - Get Location & Message'),
       ),
       body: Center(
         child: Column(
@@ -101,7 +124,10 @@ class Location extends State<GetLocation> {
             ),
             const Text(
               "User Location",
-              style: TextStyle(fontSize: 26.0, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 26.0,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(
               height: 20.0,
@@ -111,27 +137,35 @@ class Location extends State<GetLocation> {
               onPressed: () {
                 getCurrentLocation();
               },
-
-              // color: Colors.blue[800],
-              child: const Text("Get Current Location",
-                  style: TextStyle(
-                    color: Colors.white,
-                  )),
+              child: const Text(
+                "Get Current Location",
+                style: TextStyle(
+                  color: Colors.white,
+                ),
+              ),
             ),
             Container(
               margin: const EdgeInsets.all(15),
-              child: TextButton(
-                child: const Text(
-                  'Message',
-                  style: TextStyle(fontSize: 15.0),
-                ),
-                // color: Colors.blueAccent,
-                // textColor: Colors.white,
+              child: ElevatedButton(
+                child: isLoading
+                    ? const CircularProgressIndicator()
+                    : const Text(
+                        'Message',
+                        style: TextStyle(fontSize: 15.0),
+                      ),
                 onPressed: () {
-                  _sendSMS(
-                    "Please Help me! My Current Location: $locationMessage",
-                    recipients,
-                  );
+                  if (isDisabled == false) {
+                    _sendSMS(
+                      "Please Help me! My Current Location: $locationMessage",
+                      _emergencyPhone,
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Location permission is not enabled.'),
+                      ),
+                    );
+                  }
                 },
               ),
             ),
@@ -142,10 +176,11 @@ class Location extends State<GetLocation> {
   }
 }
 
-void _sendSMS(String message, List<String> recipients) async {
-  // String result = await sendSMS(message: message, recipients: recipients)
-  //     .catchError((onError) {
-  //   print(onError);
-  // });
-  print("result");
+void _sendSMS(String message, String phoneNumber) async {
+  String uri = 'sms:$phoneNumber?body=${Uri.encodeComponent(message)}';
+  if (await canLaunch(uri)) {
+    await launch(uri);
+  } else {
+    throw 'Could not launch $uri';
+  }
 }

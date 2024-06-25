@@ -1,33 +1,68 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:emergency_sos/screens/login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'getlocation.dart';
 import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
-//import 'call.dart';
-//import 'message.dart';
-//import 'livelocationtracking.dart';
 
-class HomeScreen extends StatelessWidget {
-  static const routeName = '/home';
+class HomeScreen extends StatefulWidget {
+  static const String routeName = '/home';
 
   const HomeScreen({super.key});
 
-  void get context {}
-  void _handleCommand(Map<String, dynamic> command) {
-    switch (command["command"]) {
-      case "call":
-        FlutterPhoneDirectCaller.callNumber("111");
-        break;
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
 
-      case "location":
-        break;
-      case "current location":
-        break;
-      case "message":
-        break;
-      case "live location":
-        break;
+class _HomeScreenState extends State<HomeScreen> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-      default:
-        debugPrint("Unknown command");
+  final TextEditingController _contactController = TextEditingController();
+
+  User? _user;
+  String _emergencyPhone = '';
+
+  bool isEmergencyContactSet = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
+
+  Future<void> _fetchUserData() async {
+    _user = _auth.currentUser;
+    if (_user != null) {
+      DocumentSnapshot userDoc =
+          await _firestore.collection('users').doc(_user!.uid).get();
+      if (userDoc.exists) {
+        if (userDoc['emergencyPhone'] == '') {
+          setState(() {
+            isEmergencyContactSet = false;
+          });
+        } else {
+          setState(() {
+            _emergencyPhone = userDoc['emergencyPhone'];
+            isEmergencyContactSet = true;
+          });
+        }
+      }
+    } else {
+      Navigator.pushReplacementNamed(context, LoginScreen.routeName);
+    }
+  }
+
+  Future<void> _saveData() async {
+    User? user = _auth.currentUser;
+    if (user != null) {
+      await _firestore.collection('users').doc(user.uid).set({
+        'emergencyPhone': _contactController.text,
+      });
+      print("Data saved");
+      await _fetchUserData();
+    } else {
+      print("No user signed in");
     }
   }
 
@@ -37,14 +72,20 @@ class HomeScreen extends StatelessWidget {
       home: Scaffold(
         appBar: AppBar(
           title: const Text('Savior'),
+          actions: [
+            IconButton(
+              onPressed: () {},
+              icon: const Icon(Icons.settings),
+            )
+          ],
         ),
-        body: Center(
-          child: SingleChildScrollView(
-            reverse: true,
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              children: [
-                /* Container(
+        body: Container(
+          padding: const EdgeInsets.all(10),
+          child: Center(
+            child: isEmergencyContactSet
+                ? Column(
+                    children: [
+                      /* Container(
               margin: EdgeInsets.all(15),
               child: FlatButton(
                 child: Text(
@@ -61,63 +102,64 @@ class HomeScreen extends StatelessWidget {
                 },
               ),
             ),*/
-                Container(
-                  margin: const EdgeInsets.all(15),
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    onPressed: () async {
-                      await FlutterPhoneDirectCaller.callNumber("111");
-                    },
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.call),
-                        SizedBox(width: 10),
-                        Text(
-                          'Call',
-                          style: TextStyle(fontSize: 15.0),
+                      Container(
+                        margin: const EdgeInsets.all(15),
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          onPressed: () async {
+                            await FlutterPhoneDirectCaller.callNumber(
+                                _emergencyPhone);
+                          },
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.call),
+                              SizedBox(width: 10),
+                              Text(
+                                'Call',
+                                style: TextStyle(fontSize: 15.0),
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                Container(
-                  margin: const EdgeInsets.all(15),
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
                       ),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.message),
-                        SizedBox(width: 10),
-                        Text(
-                          'Get Location & Send Message',
-                          style: TextStyle(fontSize: 15.0),
+                      Container(
+                        margin: const EdgeInsets.all(15),
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.message),
+                              SizedBox(width: 10),
+                              Text(
+                                'Get Location & Send Message',
+                                style: TextStyle(fontSize: 15.0),
+                              ),
+                            ],
+                          ),
+                          // color: Colors.blueAccent,
+                          // textColor: Colors.white,
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => const GetLocation()),
+                            );
+                          },
                         ),
-                      ],
-                    ),
-                    // color: Colors.blueAccent,
-                    // textColor: Colors.white,
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const GetLocation()),
-                      );
-                    },
-                  ),
-                ),
-                /* Container(
+                      ),
+                      /* Container(
                     margin: EdgeInsets.all(15),
                     child: FlatButton(
                       child: Text(
@@ -135,19 +177,42 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),*/
 
-                /*FloatingActionButton.extended(
+                      /*FloatingActionButton.extended(
               onPressed: () {},
               icon: Icon(Icons.save),
               label: Text("Notifications"),
             ),*/
-                /*FloatingActionButton(
+                      /*FloatingActionButton(
                     child: Icon(Icons.notifications),
                     backgroundColor: Colors.blueAccent,
                     foregroundColor: Colors.white,
                     onPressed: () => {},
                   ),*/
-              ],
-            ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      const Text("Setup Emergency Contact Number"),
+                      const SizedBox(height: 20),
+                      TextFormField(
+                        controller: _contactController,
+                        decoration: const InputDecoration(
+                            labelText: 'Emergency Contact Number'),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value!.isEmpty || value.toString().length < 11) {
+                            return 'Number should be at least 11 characters long';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      ElevatedButton(
+                        onPressed: _saveData,
+                        child: const Text('Setup'),
+                      )
+                    ],
+                  ),
           ),
         ),
       ),

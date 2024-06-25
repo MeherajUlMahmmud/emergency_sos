@@ -1,9 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import 'sign_up_screen.dart';
 import 'home_screen.dart';
-import '../models/authentication.dart';
 
 class LoginScreen extends StatefulWidget {
   static const routeName = '/login';
@@ -16,43 +15,34 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey();
 
-  final Map<String, String> _authData = {'email': '', 'password': ''};
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  void _showErrorDialog(String msg) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('An Error Occurred'),
-        content: Text(msg),
-        actions: <Widget>[
-          TextButton(
-            child: const Text('Okay'),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-            },
-          )
-        ],
-      ),
-    );
-  }
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-    _formKey.currentState!.save();
+  bool isLoading = false;
+  String error = '';
 
+  Future<void> _signIn() async {
     try {
-      await Provider.of<Authentication>(context, listen: false).logIn(
-        _authData['email']!,
-        _authData['password']!,
+      setState(() {
+        isLoading = true;
+        error = '';
+      });
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+        email: _emailController.text,
+        password: _passwordController.text,
       );
+      print("User signed in: ${userCredential.user}");
 
       if (!context.mounted) return;
       Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
-    } catch (error) {
-      var errorMessage = 'Authentication Failed. Please try again later.';
-      _showErrorDialog(errorMessage);
+    } catch (e) {
+      print("Error: $e");
+      setState(() {
+        isLoading = false;
+        error = "Wrong credentials";
+      });
     }
   }
 
@@ -60,12 +50,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Login'),
-        actions: <Widget>[
+        title: const Text('Savior - Login'),
+        actions: [
           TextButton(
-            child: const Row(
-              children: <Widget>[Text('Sign Up'), Icon(Icons.person_add)],
-            ),
+            child: const Text('Sign Up'),
             onPressed: () {
               Navigator.of(context)
                   .pushReplacementNamed(SignUpScreen.routeName);
@@ -74,13 +62,16 @@ class _LoginScreenState extends State<LoginScreen> {
         ],
       ),
       body: Stack(
-        children: <Widget>[
+        children: [
           Container(
             decoration: const BoxDecoration(
-                gradient: LinearGradient(colors: [
-              Colors.lightGreenAccent,
-              Colors.blue,
-            ])),
+              gradient: LinearGradient(
+                colors: [
+                  Colors.lightGreenAccent,
+                  Colors.blue,
+                ],
+              ),
+            ),
           ),
           Center(
             child: Card(
@@ -88,57 +79,50 @@ class _LoginScreenState extends State<LoginScreen> {
                 borderRadius: BorderRadius.circular(10.0),
               ),
               child: Container(
-                height: 260,
+                // height: 260,
                 width: 300,
                 padding: const EdgeInsets.all(16),
                 child: Form(
                   key: _formKey,
                   child: SingleChildScrollView(
                     child: Column(
-                      children: <Widget>[
-                        //email
+                      children: [
+                        // E-mail
                         TextFormField(
+                          controller: _emailController,
                           decoration: const InputDecoration(labelText: 'Email'),
                           keyboardType: TextInputType.emailAddress,
                           validator: (value) {
                             if (value!.isEmpty || !value.contains('@')) {
-                              return 'invalid email';
+                              return 'Invalid email';
                             }
                             return null;
-                          },
-                          onSaved: (value) {
-                            _authData['email'] = value ?? '';
                           },
                         ),
 
-                        //password
+                        // Password
                         TextFormField(
-                          decoration:
-                              const InputDecoration(labelText: 'Password'),
+                          controller: _passwordController,
+                          decoration: const InputDecoration(
+                            labelText: 'Password',
+                          ),
                           obscureText: true,
-                          validator: (value) {
-                            if (value!.isEmpty || value.length <= 5) {
-                              return 'invalid password';
-                            }
-                            return null;
-                          },
-                          onSaved: (value) {
-                            _authData['password'] = value ?? '';
-                          },
+                          keyboardType: TextInputType.text,
                         ),
-                        const SizedBox(
-                          height: 30,
-                        ),
+                        const SizedBox(height: 30),
                         ElevatedButton(
-                          child: const Text('Submit'),
-                          onPressed: () {
-                            _submit();
-                          },
-                          // shape: RoundedRectangleBorder(
-                          //   borderRadius: BorderRadius.circular(30),
-                          // ),
-                          // color: Colors.blue,
-                          // textColor: Colors.white,
+                          onPressed: _signIn,
+                          child: isLoading
+                              ? const CircularProgressIndicator()
+                              : const Text('Sign In'),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          error,
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 12,
+                          ),
                         )
                       ],
                     ),

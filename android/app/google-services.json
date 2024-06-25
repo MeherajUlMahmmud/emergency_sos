@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "921874965723",
+    "project_id": "emergency-sos-fdd23",
+    "storage_bucket": "emergency-sos-fdd23.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:921874965723:android:2332ad695adacd54b098fe",
+        "android_client_info": {
+          "package_name": "com.example.emergency_sos"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCO368ZhWrvpwg7n4korgvXzSolFiAE_lw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

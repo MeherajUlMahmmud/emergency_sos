@@ -1,9 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:emergency_sos/screens/home_screen.dart';
+import 'package:emergency_sos/screens/login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../models/authentication.dart';
-
-import 'home_screen.dart';
-import 'login_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   static const routeName = '/sign-up';
@@ -15,48 +14,54 @@ class SignUpScreen extends StatefulWidget {
 
 class _SignUpScreenState extends State<SignUpScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey();
+
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  final Map<String, String> _authData = {'email': '', 'password': ''};
+  bool isLoading = false;
+  String error = '';
 
-  void _showErrorDialog(String msg) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('An Error Occurred'),
-        content: Text(msg),
-        actions: <Widget>[
-          TextButton(
-            child: const Text('Okay'),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-            },
-          )
-        ],
-      ),
-    );
-  }
-
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-    _formKey.currentState!.save();
-
+  Future<void> _register() async {
     try {
-      await Provider.of<Authentication>(
-        context,
-        listen: false,
-      ).signUp(
-        _authData['email']!,
-        _authData['password']!,
+      setState(() {
+        isLoading = true;
+        error = '';
+      });
+      UserCredential userCredential =
+          await _auth.createUserWithEmailAndPassword(
+        email: _emailController.text,
+        password: _passwordController.text,
       );
+      print("User registered: ${userCredential.user}");
+
+      _saveData();
 
       if (!context.mounted) return;
       Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
-    } catch (error) {
-      var errorMessage = 'Authentication Failed. Please try again later.';
-      _showErrorDialog(errorMessage);
+    } catch (e) {
+      print("Error: $e");
+      setState(() {
+        isLoading = false;
+        error = "Something went wrong. Please try again later.";
+      });
+    }
+  }
+
+  Future<void> _saveData() async {
+    User? user = _auth.currentUser;
+    if (user != null) {
+      await _firestore.collection('users').doc(user.uid).set({
+        'name': _nameController.text,
+        'email': _emailController.text,
+        'emergencyPhone': '',
+      });
+      print("Data saved");
+    } else {
+      print("No user signed in");
     }
   }
 
@@ -65,12 +70,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sign Up'),
-        actions: <Widget>[
+        actions: [
           TextButton(
-            child: const Row(
-              children: <Widget>[Text('Login'), Icon(Icons.person)],
-            ),
-            // textColor: Colors.white,
+            child: const Text('Login'),
             onPressed: () {
               Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
             },
@@ -78,13 +80,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ],
       ),
       body: Stack(
-        children: <Widget>[
+        children: [
           Container(
             decoration: const BoxDecoration(
-                gradient: LinearGradient(colors: [
-              Colors.limeAccent,
-              Colors.redAccent,
-            ])),
+              gradient: LinearGradient(
+                colors: [
+                  Colors.limeAccent,
+                  Colors.redAccent,
+                ],
+              ),
+            ),
           ),
           Center(
             child: Card(
@@ -92,73 +97,84 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 borderRadius: BorderRadius.circular(10.0),
               ),
               child: Container(
-                height: 300,
                 width: 300,
                 padding: const EdgeInsets.all(16),
                 child: Form(
                   key: _formKey,
                   child: SingleChildScrollView(
                     child: Column(
-                      children: <Widget>[
-                        //email
+                      children: [
+                        // Name
                         TextFormField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(labelText: 'Name'),
+                          keyboardType: TextInputType.text,
+                          validator: (value) {
+                            if (value!.isEmpty || value.toString().length < 3) {
+                              return 'Name should be at least 3 characters long';
+                            }
+                            return null;
+                          },
+                        ),
+
+                        // E-mail
+                        TextFormField(
+                          controller: _emailController,
                           decoration: const InputDecoration(labelText: 'Email'),
                           keyboardType: TextInputType.emailAddress,
                           validator: (value) {
                             if (value!.isEmpty || !value.contains('@')) {
-                              return 'invalid email';
+                              return 'Invalid email';
                             }
                             return null;
                           },
-                          onSaved: (value) {
-                            _authData['email'] = value!;
-                          },
                         ),
 
-                        //password
+                        // Password
                         TextFormField(
-                          decoration:
-                              const InputDecoration(labelText: 'Password'),
-                          obscureText: true,
                           controller: _passwordController,
+                          decoration: const InputDecoration(
+                            labelText: 'Password',
+                          ),
+                          obscureText: true,
+                          keyboardType: TextInputType.text,
                           validator: (value) {
                             if (value!.isEmpty || value.length <= 5) {
-                              return 'invalid password';
+                              return 'Password should be at least 5 characters long';
                             }
                             return null;
                           },
-                          onSaved: (value) {
-                            _authData['password'] = value!;
-                          },
                         ),
 
-                        //Confirm Password
+                        // Confirm Password
                         TextFormField(
                           decoration: const InputDecoration(
-                              labelText: 'Confirm Password'),
+                            labelText: 'Confirm Password',
+                          ),
                           obscureText: true,
+                          keyboardType: TextInputType.text,
                           validator: (value) {
                             if (value!.isEmpty ||
                                 value != _passwordController.text) {
-                              return 'invalid password';
+                              return 'Passwords do not match';
                             }
                             return null;
                           },
-                          onSaved: (value) {},
                         ),
-                        const SizedBox(
-                          height: 30,
-                        ),
+                        const SizedBox(height: 30),
                         ElevatedButton(
-                          child: const Text('Submit'),
-                          onPressed: () {
-                            _submit();
-                          },
-                          // shape: RoundedRectangleBorder(
-                          //   borderRadius: BorderRadius.circular(30),
-                          // ),
-                          // color: Colors.blue,
-                          // textColor: Colors.white,
+                          onPressed: _register,
+                          child: isLoading
+                              ? const CircularProgressIndicator()
+                              : const Text('Sign Up'),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          error,
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 12,
+                          ),
                         )
                       ],
                     ),
