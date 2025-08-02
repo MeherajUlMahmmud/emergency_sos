@@ -118,8 +118,8 @@ class _MyHomePageState extends State<MyHomePage> {
       body: GoogleMap(
         mapType: MapType.hybrid,
         initialCameraPosition: initialLocation,
-        markers: Set.of((marker != null) ? [marker] : []),
-        circles: Set.of((circle != null) ? [circle] : []),
+        markers: Set.of([marker]),
+        circles: Set.of([circle]),
         onMapCreated: (GoogleMapController controller) {
           _controller = controller;
         },

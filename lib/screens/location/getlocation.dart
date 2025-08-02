@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:emergency_sos/screens/login_screen.dart';
+import 'package:emergency_sos/screens/auth/login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -178,8 +178,9 @@ class Location extends State<GetLocation> {
 
 void _sendSMS(String message, String phoneNumber) async {
   String uri = 'sms:$phoneNumber?body=${Uri.encodeComponent(message)}';
-  if (await canLaunch(uri)) {
-    await launch(uri);
+  final Uri smsUri = Uri.parse(uri);
+  if (await canLaunchUrl(smsUri)) {
+    await launchUrl(smsUri);
   } else {
     throw 'Could not launch $uri';
   }
